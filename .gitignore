@@ -1,0 +1,5 @@
+*.exe
+*.bak
+update-check-*.txt
+update-install-*.txt
+config.ini

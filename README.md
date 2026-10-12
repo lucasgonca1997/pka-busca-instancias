@@ -7,11 +7,9 @@ Automação de busca de instâncias para PokeAlliance em AutoHotkey v2 no Window
 1. Baixe `PKA-Busca-Instancias.exe` na seção **Releases**. Ao abrir, autorize a solicitação de administrador do Windows. O programa só funciona com essa permissão, pois o PKA também é executado como administrador.
 2. Abra o PokeAlliance, informe o nome do personagem e, quando o nome estiver visível, clique em **Calibrar**. A posição fica salva no computador.
 3. Pressione **F12** para iniciar ou parar. O programa procura instâncias com `0 jogadores`, tenta entrar e apita três vezes.
-4. A opção de busca com o PKA coberto por outras janelas vem ligada. O jogo pode ficar atrás de outras janelas, mas não minimizado.
+4. Mantenha o PKA em primeiro plano durante a busca. O programa move o cursor para abrir o painel, rolar a lista e entrar na instância.
 
-Nos cliques em segundo plano, o programa posiciona o cursor brevemente no alvo salvo e o devolve à posição anterior. Isso atende aos clientes que só reconhecem o clique depois de receber o movimento do mouse.
-
-Na rolagem, o cursor vai para a barra lateral da lista. A captura ocorre antes de ele voltar à posição anterior, para que a descrição de uma instância não cubra o texto `0 jogadores`. Se a primeira forma de rolagem em segundo plano não mover a barra, o programa tenta uma segunda forma de envio.
+Na rolagem, o cursor fica sobre a barra lateral da lista para que a descrição de uma instância não cubra o texto `0 jogadores`. A busca testa a largura original desse texto e outras escalas, independentemente do tamanho do botão do painel.
 
 A busca percorre sete passos de rolagem por direção. A interface pode ser minimizada na bandeja.
 
@@ -29,4 +27,4 @@ Mantenha os arquivos desta pasta juntos e compile `PKA-Busca-Instancias.ahk` com
 
 `wincapture.ahk` e `wincapture.dll` pertencem à biblioteca [ahk2_lib](https://github.com/thqby/ahk2_lib/tree/master/wincapture) de thqby. Consulte `wincapture-LICENSE.txt` para a licença MIT dessa dependência.
 
-O jogo e a captura em segundo plano não foram testados em todos os computadores; a entrada em segundo plano pode exigir que o PKA venha à frente no clique final.
+A busca com o jogo coberto por outras janelas foi desativada na versão 1.0.3 porque a rolagem em segundo plano e o uso simultâneo do mouse não se mostraram confiáveis no PKA.

@@ -1,5 +1,5 @@
 #Requires AutoHotkey v2.0
-;@Ahk2Exe-SetVersion 1.0.2
+;@Ahk2Exe-SetVersion 1.0.3
 #SingleInstance Force
 #UseHook
 #Include wincapture.ahk
@@ -49,7 +49,7 @@ global imagemTela := 0
 global telaCx := 0, telaCy := 0, telaCw := 0, telaCh := 0
 global telaSx := 1, telaSy := 1
 global modelosZero := Map()
-global versaoAtual := "1.0.2"
+global versaoAtual := "1.0.3"
 global repositorioGithub := "lucasgonca1997/pka-busca-instancias"
 global pidAtual := DllCall("GetCurrentProcessId", "UInt")
 global scriptAtualizacao := pastaDados "\pka-update.ps1"
@@ -90,7 +90,7 @@ MinhaGui.AddText "x18 y16 w344", "Nome do personagem"
 global editNome := MinhaGui.AddEdit("x18 y42 w344", nomeInicial)
 global btnCalibrar := MinhaGui.AddButton("x18 y80 w120 h38", "Calibrar")
 global btnBusca := MinhaGui.AddButton("x148 y80 w214 h38", "Iniciar busca (F12)")
-global chkFundo := MinhaGui.AddCheckbox("x18 y125 w344 h24 Checked", "Buscar com PKA coberto por outras janelas")
+MinhaGui.AddText "x18 y125 w344 h24", "Busca com PKA em primeiro plano"
 global txtCalibracao := MinhaGui.AddText("x18 y158 w344 h23", "Calibração: pendente")
 global txtBusca := MinhaGui.AddText("x18 y187 w344 h42", "Status: parada")
 global txtPKA := MinhaGui.AddText("x18 y235 w344 h37", "PKA: procurando janela...")
@@ -645,27 +645,26 @@ ProcurarZero(area, mx, my, escalaUI, &achouX, &achouY, &escalaImagem, rapido := 
     cw := area.cw
     ch := area.ch
     if rapido {
-        fator := escalaUI
-        largura := Max(40, Round(100 * fator))
-        altura := Max(12, Round(30 * fator))
-        centroX := Round(mx + 148 * fator)
-        margemX := Max(18, Round(24 * fator))
+        centroX := Round(mx + 148 * escalaUI)
+        margemX := Max(18, Round(24 * escalaUI))
         x1 := Max(cx, centroX - margemX)
-        y1 := Max(cy, Round(my - 112 * fator))
-        x2 := Min(cx + cw - 1, centroX + margemX + largura - 1)
-        y2 := Min(cy + ch - 1, Round(my + 126 * fator))
-        if x2 - x1 + 1 < largura || y2 - y1 + 1 < altura
-            return false
-        try {
-            if ImageSearchBusca(&x, &y, x1, y1, x2, y2, largura, 45) {
-                achouX := x
-                achouY := y
-                escalaImagem := fator
-                return true
+        y1 := Max(cy, Round(my - 112 * escalaUI))
+        y2 := Min(cy + ch - 1, Round(my + 126 * escalaUI))
+        for largura in LargurasZero(escalaUI) {
+            x2 := Min(cx + cw - 1, centroX + margemX + largura - 1)
+            if x2 - x1 + 1 < largura || y2 - y1 + 1 < Max(12, Round(30 * largura / 100))
+                continue
+            try {
+                if ImageSearchBusca(&x, &y, x1, y1, x2, y2, largura, 55) {
+                    achouX := x
+                    achouY := y
+                    escalaImagem := largura / 100
+                    return true
+                }
+            } catch as erro {
+                erroImagem := erro.Message
+                return false
             }
-        } catch as erro {
-            erroImagem := erro.Message
-            return false
         }
         return false
     }
@@ -675,13 +674,8 @@ ProcurarZero(area, mx, my, escalaUI, &achouX, &achouY, &escalaImagem, rapido := 
     y1 := Max(cy, Round(my - 110 * escalaUI))
     x2 := Min(cx + cw - 1, Round(mx + 285 * escalaUI))
     y2 := Min(cy + ch - 1, Round(my + 125 * escalaUI))
-    escalas := [escalaUI, 1.0, 1.25, 0.9, 1.1, 0.8, 1.5]
-    largurasVistas := Map()
-    for fator in escalas {
-        largura := Max(40, Round(100 * fator))
-        if largurasVistas.Has(largura)
-            continue
-        largurasVistas[largura] := true
+    for largura in LargurasZero(escalaUI) {
+        fator := largura / 100
         for tolerancia in [30, 55] {
             try {
                 if ImageSearchBusca(&x, &y, x1, y1, x2, y2, largura, tolerancia) {
@@ -697,6 +691,20 @@ ProcurarZero(area, mx, my, escalaUI, &achouX, &achouY, &escalaImagem, rapido := 
         }
     }
     return false
+}
+
+LargurasZero(escalaUI) {
+    larguras := []
+    vistas := Map()
+    ; O texto do jogo pode manter 100 px mesmo se o botao do painel mudar de escala.
+    for fator in [1.0, escalaUI, 1.25, 0.9, 1.1, 0.8, 1.5] {
+        largura := Max(40, Round(100 * fator))
+        if !vistas.Has(largura) {
+            vistas[largura] := true
+            larguras.Push(largura)
+        }
+    }
+    return larguras
 }
 
 SalvarNomePersonagem() {
@@ -762,7 +770,7 @@ ObterPosicaoCalibrada(hwnd, nome, &px, &py) {
 }
 
 CalibrarNome(*) {
-    global buscaAtiva, MinhaGui, txtBusca, erroNome, modoFundo, chkFundo
+    global buscaAtiva, MinhaGui, txtBusca, erroNome, modoFundo
     if buscaAtiva {
         txtBusca.Text := "Status: pare a busca antes de calibrar"
         return
@@ -774,8 +782,8 @@ CalibrarNome(*) {
     }
     MinhaGui.Hide()
     try {
-        modoFundo := chkFundo.Value = 1
-        hwnd := modoFundo ? EncontrarPKA() : AtivarPKA()
+        modoFundo := false
+        hwnd := AtivarPKA()
         if !hwnd {
             txtBusca.Text := "Status: janela de '" nome "' não encontrada"
         } else if !CapturarBusca(hwnd) {
@@ -1068,7 +1076,7 @@ try {
 AlternarBusca() {
     global buscaAtiva, btnBusca, txtBusca, imagemZero, MinhaGui, inicioBusca
     global ciclosSemVaga, tempoPainelMs, tempoVagaMs, posicaoBusca, subindo
-    global modoFundo, chkFundo
+    global modoFundo
     if buscaAtiva {
         buscaAtiva := false
         SetTimer ProcurarInstancia, 0
@@ -1082,7 +1090,7 @@ AlternarBusca() {
         return
     }
     MinhaGui.Hide()
-    hwnd := EncontrarPKA()
+    hwnd := AtivarPKA()
     if !hwnd {
         txtBusca.Text := "Status: PKA não encontrado ou inacessível"
         MinhaGui.Show()
@@ -1094,7 +1102,7 @@ AlternarBusca() {
         MinhaGui.Show()
         return
     }
-    modoFundo := chkFundo.Value = 1
+    modoFundo := false
     inicioBusca := A_TickCount
     ciclosSemVaga := 0
     subindo := false
@@ -1104,7 +1112,7 @@ AlternarBusca() {
     buscaAtiva := true
     SetTimer EncontrarPKA, 0
     btnBusca.Text := "Parar busca (F12)"
-    txtBusca.Text := "Status: procurando instância"
+    txtBusca.Text := "Status: procurando instância (PKA na frente)"
     SetTimer ProcurarInstancia, -1
 }
 
@@ -1310,7 +1318,8 @@ RolarLista(hwnd, mx, my, escalaUI, sentido, qtd) {
             try PostMessage 0x0200, 0, (rx & 0xFFFF) | ((ry & 0xFFFF) << 16), , "ahk_id " hwnd
             Sleep 20
             imagemAnterior := imagemTela
-        }
+        } else
+            Sleep 20
         Loop qtd {
             if modoFundo {
                 delta := sentido = "Up" ? 120 : -120
@@ -1320,7 +1329,7 @@ RolarLista(hwnd, mx, my, escalaUI, sentido, qtd) {
                 Send sentido = "Up" ? "{WheelUp}" : "{WheelDown}"
             Sleep 6
         }
-        Sleep 30
+        Sleep modoFundo ? 30 : 70
         if !CapturarBusca(hwnd)
             return false
         if modoFundo && !BarraRolou(imagemAnterior, imagemTela, x, my, escalaUI,

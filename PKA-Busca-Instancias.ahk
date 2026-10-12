@@ -1,5 +1,5 @@
 #Requires AutoHotkey v2.0
-;@Ahk2Exe-SetVersion 1.0.3
+;@Ahk2Exe-SetVersion 1.0.4
 #SingleInstance Force
 #UseHook
 #Include wincapture.ahk
@@ -42,14 +42,14 @@ global tempoPainelMs := 0
 global tempoVagaMs := 0
 global ciclosSemVaga := 0
 global posicaoBusca := 0
-global modoFundo := false
+global modoFundo := true
 global captura := 0
 global capturaHwnd := 0
 global imagemTela := 0
 global telaCx := 0, telaCy := 0, telaCw := 0, telaCh := 0
 global telaSx := 1, telaSy := 1
 global modelosZero := Map()
-global versaoAtual := "1.0.3"
+global versaoAtual := "1.0.4"
 global repositorioGithub := "lucasgonca1997/pka-busca-instancias"
 global pidAtual := DllCall("GetCurrentProcessId", "UInt")
 global scriptAtualizacao := pastaDados "\pka-update.ps1"
@@ -90,7 +90,7 @@ MinhaGui.AddText "x18 y16 w344", "Nome do personagem"
 global editNome := MinhaGui.AddEdit("x18 y42 w344", nomeInicial)
 global btnCalibrar := MinhaGui.AddButton("x18 y80 w120 h38", "Calibrar")
 global btnBusca := MinhaGui.AddButton("x148 y80 w214 h38", "Iniciar busca (F12)")
-MinhaGui.AddText "x18 y125 w344 h24", "Busca com PKA em primeiro plano"
+MinhaGui.AddText "x18 y125 w344 h24", "Busca com PKA coberto por outras janelas"
 global txtCalibracao := MinhaGui.AddText("x18 y158 w344 h23", "Calibração: pendente")
 global txtBusca := MinhaGui.AddText("x18 y187 w344 h42", "Status: parada")
 global txtPKA := MinhaGui.AddText("x18 y235 w344 h37", "PKA: procurando janela...")
@@ -421,22 +421,16 @@ ClicarBusca(hwnd, x, y, botao := "Left") {
         throw Error("Área do jogo indisponível")
     rx := Round(x - cx)
     ry := Round(y - cy)
-    ; O PKA pode consultar a posicao real do cursor antes de aceitar
-    ; o clique, mesmo quando recebe ControlClick em segundo plano.
-    MouseGetPos &anteriorX, &anteriorY
-    try {
-        MouseMove x, y, 0
-        try PostMessage 0x0200, 0, (rx & 0xFFFF) | ((ry & 0xFFFF) << 16), , "ahk_id " hwnd
-        if botao = "Right"
-            Sleep 25
-        ControlClick("x" rx " y" ry, "ahk_id " hwnd, "", botao, 1, "NA Pos")
-        if botao = "Right"
-            Sleep 60
-    } finally {
-        ; Se a pessoa moveu o mouse durante o clique, respeita a nova posicao.
-        MouseGetPos &atualX, &atualY
-        if Abs(atualX - x) <= 2 && Abs(atualY - y) <= 2
-            MouseMove anteriorX, anteriorY, 0
+    pos := (rx & 0xFFFF) | ((ry & 0xFFFF) << 16)
+    PostMessage 0x0200, 0, pos, , "ahk_id " hwnd
+    if botao = "Right" {
+        PostMessage 0x0204, 0x0002, pos, , "ahk_id " hwnd
+        Sleep 60
+        PostMessage 0x0205, 0, pos, , "ahk_id " hwnd
+    } else {
+        PostMessage 0x0201, 0x0001, pos, , "ahk_id " hwnd
+        Sleep 30
+        PostMessage 0x0202, 0, pos, , "ahk_id " hwnd
     }
 }
 
@@ -1090,7 +1084,7 @@ AlternarBusca() {
         return
     }
     MinhaGui.Hide()
-    hwnd := AtivarPKA()
+    hwnd := EncontrarPKA()
     if !hwnd {
         txtBusca.Text := "Status: PKA não encontrado ou inacessível"
         MinhaGui.Show()
@@ -1102,7 +1096,7 @@ AlternarBusca() {
         MinhaGui.Show()
         return
     }
-    modoFundo := false
+    modoFundo := true
     inicioBusca := A_TickCount
     ciclosSemVaga := 0
     subindo := false
@@ -1112,7 +1106,7 @@ AlternarBusca() {
     buscaAtiva := true
     SetTimer EncontrarPKA, 0
     btnBusca.Text := "Parar busca (F12)"
-    txtBusca.Text := "Status: procurando instância (PKA na frente)"
+    txtBusca.Text := "Status: procurando instância (PKA coberto)"
     SetTimer ProcurarInstancia, -1
 }
 
@@ -1282,73 +1276,53 @@ CapturarListaNaBarra(hwnd, mx, my, escalaUI) {
     ; A barra nao abre descricoes sobre o texto "0 jogadores".
     x := Round(mx + 293 * escalaUI)
     y := Round(my)
-    MouseGetPos &anteriorX, &anteriorY
-    try {
+    if modoFundo {
+        if !ObterAreaCliente(hwnd, &cx, &cy, &cw, &ch)
+            throw Error("Área do jogo indisponível")
+        rx := Round(x - cx)
+        ry := Round(y - cy)
+        PostMessage 0x0200, 0, (rx & 0xFFFF) | ((ry & 0xFFFF) << 16), , "ahk_id " hwnd
+    } else
         MouseMove x, y, 0
-        if modoFundo {
-            if !ObterAreaCliente(hwnd, &cx, &cy, &cw, &ch)
-                throw Error("Área do jogo indisponível")
-            rx := Round(x - cx)
-            ry := Round(y - cy)
-            try PostMessage 0x0200, 0, (rx & 0xFFFF) | ((ry & 0xFFFF) << 16), , "ahk_id " hwnd
-        }
-        Sleep 35
-        return CapturarBusca(hwnd)
-    } finally {
-        if modoFundo {
-            MouseGetPos &atualX, &atualY
-            if Abs(atualX - x) <= 2 && Abs(atualY - y) <= 2
-                MouseMove anteriorX, anteriorY, 0
-        }
-    }
+    Sleep 35
+    return CapturarBusca(hwnd)
 }
 
 RolarLista(hwnd, mx, my, escalaUI, sentido, qtd) {
     global modoFundo, imagemTela, telaCx, telaCy, telaSx, telaSy
     x := Round(mx + 293 * escalaUI)
     y := Round(my)
-    MouseGetPos &anteriorX, &anteriorY
-    try {
+    if modoFundo {
+        if !ObterAreaCliente(hwnd, &cx, &cy, &cw, &ch)
+            throw Error("Área do jogo indisponível")
+        rx := Round(x - cx)
+        ry := Round(y - cy)
+        PostMessage 0x0200, 0, (rx & 0xFFFF) | ((ry & 0xFFFF) << 16), , "ahk_id " hwnd
+        imagemAnterior := imagemTela
+    } else
         MouseMove x, y, 0
+    Sleep 20
+    Loop qtd {
         if modoFundo {
-            if !ObterAreaCliente(hwnd, &cx, &cy, &cw, &ch)
-                throw Error("Área do jogo indisponível")
-            rx := Round(x - cx)
-            ry := Round(y - cy)
-            try PostMessage 0x0200, 0, (rx & 0xFFFF) | ((ry & 0xFFFF) << 16), , "ahk_id " hwnd
-            Sleep 20
-            imagemAnterior := imagemTela
+            delta := sentido = "Up" ? 120 : -120
+            PostMessage 0x020A, (delta & 0xFFFF) << 16,
+                (x & 0xFFFF) | ((y & 0xFFFF) << 16), , "ahk_id " hwnd
         } else
-            Sleep 20
-        Loop qtd {
-            if modoFundo {
-                delta := sentido = "Up" ? 120 : -120
-                PostMessage 0x020A, (delta & 0xFFFF) << 16,
-                    (x & 0xFFFF) | ((y & 0xFFFF) << 16), , "ahk_id " hwnd
-            } else
-                Send sentido = "Up" ? "{WheelUp}" : "{WheelDown}"
-            Sleep 6
-        }
-        Sleep modoFundo ? 30 : 70
-        if !CapturarBusca(hwnd)
-            return false
-        if modoFundo && !BarraRolou(imagemAnterior, imagemTela, x, my, escalaUI,
-            telaCx, telaCy, telaSx, telaSy) {
-            ; Alguns clientes aceitam ControlClick mesmo quando ignoram
-            ; WM_MOUSEWHEEL. So tenta a alternativa se a barra nao mudou.
-            ControlClick("x" rx " y" ry, "ahk_id " hwnd, "",
-                sentido = "Up" ? "WheelUp" : "WheelDown", qtd, "NA Pos")
-            Sleep 30
-            return CapturarBusca(hwnd)
-        }
-        return true
-    } finally {
-        if modoFundo {
-            MouseGetPos &atualX, &atualY
-            if Abs(atualX - x) <= 2 && Abs(atualY - y) <= 2
-                MouseMove anteriorX, anteriorY, 0
-        }
+            Send sentido = "Up" ? "{WheelUp}" : "{WheelDown}"
+        Sleep 6
     }
+    Sleep modoFundo ? 30 : 70
+    if !CapturarBusca(hwnd)
+        return false
+    if modoFundo && !BarraRolou(imagemAnterior, imagemTela, x, my, escalaUI,
+        telaCx, telaCy, telaSx, telaSy) {
+        ; Reenvia pela alternativa sem mudar a posicao real do cursor.
+        ControlClick("x" rx " y" ry, "ahk_id " hwnd, "",
+            sentido = "Up" ? "WheelUp" : "WheelDown", qtd, "NA Pos")
+        Sleep 30
+        return CapturarBusca(hwnd)
+    }
+    return true
 }
 
 BarraRolou(antes, depois, x, my, escalaUI, cx, cy, sx, sy) {
@@ -1390,14 +1364,40 @@ EntrarInstancia(hwnd, mx, my, escalaUI, y, fatorImagem) {
     if modoFundo {
         Sleep 120
         if !CapturarBusca(hwnd) || PainelAbertoNaPosicao(posicaoBusca) {
-            ; Alguns clientes só aceitam o clique final com foco. Isso só
-            ; traz o PKA à frente depois de encontrar a vaga.
-            if AtivarJanelaDaBusca(hwnd) {
-                MouseMove Round(mx + 40 * escalaUI), Round(y + 15 * fatorImagem), 0
-                Click "Left"
+            ; Segunda tentativa sem ocupar o mouse. O foco so e usado
+            ; se o cliente ignorar tambem os cliques diretos.
+            if ObterAreaCliente(hwnd, &cx, &cy, &cw, &ch) {
+                rxLinha := Round(mx + 40 * escalaUI - cx)
+                ryLinha := Round(y + 15 * fatorImagem - cy)
+                rxEntrar := Round(mx + 219 * escalaUI - cx)
+                ryEntrar := Round(my + 156 * escalaUI - cy)
+                ControlClick("x" rxLinha " y" ryLinha, "ahk_id " hwnd, "", "Left", 1, "NA Pos")
                 Sleep 50
-                Click Round(mx + 219 * escalaUI), Round(my + 156 * escalaUI)
+                ControlClick("x" rxEntrar " y" ryEntrar, "ahk_id " hwnd, "", "Left", 1, "NA Pos")
+                Sleep 120
             }
+            if !CapturarBusca(hwnd) || PainelAbertoNaPosicao(posicaoBusca) {
+                ; Ultimo recurso: foco e clique real somente depois de
+                ; encontrada a vaga, nunca durante a varredura.
+                if AtivarJanelaDaBusca(hwnd) {
+                    MouseMove Round(mx + 40 * escalaUI), Round(y + 15 * fatorImagem), 0
+                    Click "Left"
+                    Sleep 50
+                    Click Round(mx + 219 * escalaUI), Round(my + 156 * escalaUI)
+                }
+            }
+        }
+        Sleep 80
+        if !CapturarBusca(hwnd) {
+            posicaoBusca := 0
+            txtBusca.Text := "Status: verificando entrada; tentando novamente"
+            return
+        }
+        if PainelAbertoNaPosicao(posicaoBusca) {
+            FecharPainelBusca(hwnd)
+            posicaoBusca := 0
+            txtBusca.Text := "Status: entrada não confirmada; buscando novamente"
+            return
         }
     }
     SetTimer ApitarTresVezes, -1

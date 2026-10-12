@@ -7,7 +7,7 @@ Automação de busca de instâncias para PokeAlliance em AutoHotkey v2 no Window
 1. Baixe `PKA-Busca-Instancias.exe` na seção **Releases**. Ao abrir, autorize a solicitação de administrador do Windows. O programa só funciona com essa permissão, pois o PKA também é executado como administrador.
 2. Abra o PokeAlliance, informe o nome do personagem e, quando o nome estiver visível, clique em **Calibrar**. A posição fica salva no computador.
 3. Pressione **F12** para iniciar ou parar. O programa procura instâncias com `0 jogadores`, tenta entrar e apita três vezes.
-4. Mantenha o PKA em primeiro plano durante a busca. O programa move o cursor para abrir o painel, rolar a lista e entrar na instância.
+4. O PKA pode ficar coberto por outras janelas durante a busca. O programa captura a janela do jogo e envia os cliques e a rolagem diretamente a ela, sem ocupar o cursor durante a varredura. Deixe o jogo aberto e sem minimizar.
 
 Na rolagem, o cursor fica sobre a barra lateral da lista para que a descrição de uma instância não cubra o texto `0 jogadores`. A busca testa a largura original desse texto e outras escalas, independentemente do tamanho do botão do painel.
 
@@ -27,4 +27,4 @@ Mantenha os arquivos desta pasta juntos e compile `PKA-Busca-Instancias.ahk` com
 
 `wincapture.ahk` e `wincapture.dll` pertencem à biblioteca [ahk2_lib](https://github.com/thqby/ahk2_lib/tree/master/wincapture) de thqby. Consulte `wincapture-LICENSE.txt` para a licença MIT dessa dependência.
 
-A busca com o jogo coberto por outras janelas foi desativada na versão 1.0.3 porque a rolagem em segundo plano e o uso simultâneo do mouse não se mostraram confiáveis no PKA.
+A versão 1.0.4 reativa a busca com o PKA coberto. Se um cliente ignorar os cliques enviados em segundo plano, o programa pode trazer o jogo à frente apenas após encontrar uma vaga para concluir a entrada.

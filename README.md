@@ -11,6 +11,8 @@ Automação de busca de instâncias para PokeAlliance em AutoHotkey v2 no Window
 
 Nos cliques em segundo plano, o programa posiciona o cursor brevemente no alvo salvo e o devolve à posição anterior. Isso atende aos clientes que só reconhecem o clique depois de receber o movimento do mouse.
 
+Na rolagem, o cursor vai para a barra lateral da lista. A captura ocorre antes de ele voltar à posição anterior, para que a descrição de uma instância não cubra o texto `0 jogadores`. Se a primeira forma de rolagem em segundo plano não mover a barra, o programa tenta uma segunda forma de envio.
+
 A busca percorre sete passos de rolagem por direção. A interface pode ser minimizada na bandeja.
 
 ## Atualizações

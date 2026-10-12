@@ -1,5 +1,5 @@
 #Requires AutoHotkey v2.0
-;@Ahk2Exe-SetVersion 1.0.1
+;@Ahk2Exe-SetVersion 1.0.2
 #SingleInstance Force
 #UseHook
 #Include wincapture.ahk
@@ -49,7 +49,7 @@ global imagemTela := 0
 global telaCx := 0, telaCy := 0, telaCw := 0, telaCh := 0
 global telaSx := 1, telaSy := 1
 global modelosZero := Map()
-global versaoAtual := "1.0.1"
+global versaoAtual := "1.0.2"
 global repositorioGithub := "lucasgonca1997/pka-busca-instancias"
 global pidAtual := DllCall("GetCurrentProcessId", "UInt")
 global scriptAtualizacao := pastaDados "\pka-update.ps1"
@@ -1210,6 +1210,11 @@ ProcurarInstancia() {
             my := posicaoBusca.my
             escalaUI := posicaoBusca.escala
         }
+        if !CapturarListaNaBarra(hwnd, mx, my, escalaUI) {
+            txtBusca.Text := "Status: aguardando captura da lista"
+            intervaloProximo := 800
+            return
+        }
         inicioImagem := A_TickCount
         ; Busca ampla apenas na primeira tela apos F12. As demais usam
         ; a coluna dos contadores, inclusive apos cada passo do scroll.
@@ -1228,9 +1233,7 @@ ProcurarInstancia() {
         Loop 7 {
             if !buscaAtiva
                 return
-            RolarLista(hwnd, mx, my, escalaUI, subindo ? "Up" : "Down", 1)
-            Sleep 30
-            if !CapturarBusca(hwnd) {
+            if !RolarLista(hwnd, mx, my, escalaUI, subindo ? "Up" : "Down", 1) {
                 txtBusca.Text := "Status: aguardando captura da lista"
                 intervaloProximo := 800
                 return
@@ -1266,22 +1269,104 @@ ProcurarInstancia() {
     }
 }
 
-RolarLista(hwnd, mx, my, escalaUI, sentido, qtd) {
+CapturarListaNaBarra(hwnd, mx, my, escalaUI) {
     global modoFundo
+    ; A barra nao abre descricoes sobre o texto "0 jogadores".
     x := Round(mx + 293 * escalaUI)
     y := Round(my)
-    if !modoFundo
+    MouseGetPos &anteriorX, &anteriorY
+    try {
         MouseMove x, y, 0
-    Loop qtd {
         if modoFundo {
             if !ObterAreaCliente(hwnd, &cx, &cy, &cw, &ch)
                 throw Error("Área do jogo indisponível")
-            ControlClick("x" Round(x - cx) " y" Round(y - cy),
-                "ahk_id " hwnd, "", sentido = "Up" ? "WheelUp" : "WheelDown", 1, "NA Pos")
-        } else
-            Send sentido = "Up" ? "{WheelUp}" : "{WheelDown}"
-        Sleep 6
+            rx := Round(x - cx)
+            ry := Round(y - cy)
+            try PostMessage 0x0200, 0, (rx & 0xFFFF) | ((ry & 0xFFFF) << 16), , "ahk_id " hwnd
+        }
+        Sleep 35
+        return CapturarBusca(hwnd)
+    } finally {
+        if modoFundo {
+            MouseGetPos &atualX, &atualY
+            if Abs(atualX - x) <= 2 && Abs(atualY - y) <= 2
+                MouseMove anteriorX, anteriorY, 0
+        }
     }
+}
+
+RolarLista(hwnd, mx, my, escalaUI, sentido, qtd) {
+    global modoFundo, imagemTela, telaCx, telaCy, telaSx, telaSy
+    x := Round(mx + 293 * escalaUI)
+    y := Round(my)
+    MouseGetPos &anteriorX, &anteriorY
+    try {
+        MouseMove x, y, 0
+        if modoFundo {
+            if !ObterAreaCliente(hwnd, &cx, &cy, &cw, &ch)
+                throw Error("Área do jogo indisponível")
+            rx := Round(x - cx)
+            ry := Round(y - cy)
+            try PostMessage 0x0200, 0, (rx & 0xFFFF) | ((ry & 0xFFFF) << 16), , "ahk_id " hwnd
+            Sleep 20
+            imagemAnterior := imagemTela
+        }
+        Loop qtd {
+            if modoFundo {
+                delta := sentido = "Up" ? 120 : -120
+                PostMessage 0x020A, (delta & 0xFFFF) << 16,
+                    (x & 0xFFFF) | ((y & 0xFFFF) << 16), , "ahk_id " hwnd
+            } else
+                Send sentido = "Up" ? "{WheelUp}" : "{WheelDown}"
+            Sleep 6
+        }
+        Sleep 30
+        if !CapturarBusca(hwnd)
+            return false
+        if modoFundo && !BarraRolou(imagemAnterior, imagemTela, x, my, escalaUI,
+            telaCx, telaCy, telaSx, telaSy) {
+            ; Alguns clientes aceitam ControlClick mesmo quando ignoram
+            ; WM_MOUSEWHEEL. So tenta a alternativa se a barra nao mudou.
+            ControlClick("x" rx " y" ry, "ahk_id " hwnd, "",
+                sentido = "Up" ? "WheelUp" : "WheelDown", qtd, "NA Pos")
+            Sleep 30
+            return CapturarBusca(hwnd)
+        }
+        return true
+    } finally {
+        if modoFundo {
+            MouseGetPos &atualX, &atualY
+            if Abs(atualX - x) <= 2 && Abs(atualY - y) <= 2
+                MouseMove anteriorX, anteriorY, 0
+        }
+    }
+}
+
+BarraRolou(antes, depois, x, my, escalaUI, cx, cy, sx, sy) {
+    if !IsObject(antes) || !IsObject(depois)
+        return false
+    if antes.width != depois.width || antes.height != depois.height
+        return true
+    topo := Round((my - 100 * escalaUI - cy) * sy)
+    fundo := Round((my + 125 * escalaUI - cy) * sy)
+    mudancas := 0
+    for deslocamento in [-3, 0, 3] {
+        coluna := Round((x + deslocamento * escalaUI - cx) * sx)
+        if coluna < 0 || coluna >= depois.width
+            continue
+        linha := Max(0, topo)
+        while linha <= Min(depois.height - 1, fundo) {
+            corAntes := antes[coluna, linha] & 0xFFFFFF
+            corDepois := depois[coluna, linha] & 0xFFFFFF
+            diferenca := Abs(((corAntes >> 16) & 255) - ((corDepois >> 16) & 255))
+                + Abs(((corAntes >> 8) & 255) - ((corDepois >> 8) & 255))
+                + Abs((corAntes & 255) - (corDepois & 255))
+            if diferenca > 90
+                mudancas++
+            linha += 3
+        }
+    }
+    return mudancas >= 12
 }
 
 EntrarInstancia(hwnd, mx, my, escalaUI, y, fatorImagem) {

@@ -11,7 +11,7 @@ Automação de busca de instâncias para PokeAlliance em AutoHotkey v2 no Window
 
 Na rolagem, o cursor fica sobre a barra lateral da lista para que a descrição de uma instância não cubra o texto `0 jogadores`. A busca testa a largura original desse texto e outras escalas, independentemente do tamanho do botão do painel.
 
-A busca percorre sete passos de rolagem por direção. A interface pode ser minimizada na bandeja.
+A busca percorre sete passos de rolagem por direção e mantém o painel aberto entre as varreduras. A interface pode ser minimizada na bandeja.
 
 ## Atualizações
 
@@ -27,4 +27,4 @@ Mantenha os arquivos desta pasta juntos e compile `PKA-Busca-Instancias.ahk` com
 
 `wincapture.ahk` e `wincapture.dll` pertencem à biblioteca [ahk2_lib](https://github.com/thqby/ahk2_lib/tree/master/wincapture) de thqby. Consulte `wincapture-LICENSE.txt` para a licença MIT dessa dependência.
 
-A versão 1.0.4 reativa a busca com o PKA coberto. Se um cliente ignorar os cliques enviados em segundo plano, o programa pode trazer o jogo à frente apenas após encontrar uma vaga para concluir a entrada.
+A versão 1.0.4 reativou a busca com o PKA coberto. Na 1.0.5, o programa aguarda a confirmação da abertura do painel antes de tentar novo clique e deixa o painel aberto enquanto procura vagas. Se um cliente ignorar os cliques enviados em segundo plano, o programa pode trazer o jogo à frente apenas após encontrar uma vaga para concluir a entrada.

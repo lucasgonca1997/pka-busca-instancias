@@ -1,5 +1,5 @@
 #Requires AutoHotkey v2.0
-;@Ahk2Exe-SetVersion 1.0.4
+;@Ahk2Exe-SetVersion 1.0.5
 #SingleInstance Force
 #UseHook
 #Include wincapture.ahk
@@ -42,6 +42,7 @@ global tempoPainelMs := 0
 global tempoVagaMs := 0
 global ciclosSemVaga := 0
 global posicaoBusca := 0
+global ultimaTentativaPainel := 0
 global modoFundo := true
 global captura := 0
 global capturaHwnd := 0
@@ -49,7 +50,7 @@ global imagemTela := 0
 global telaCx := 0, telaCy := 0, telaCw := 0, telaCh := 0
 global telaSx := 1, telaSy := 1
 global modelosZero := Map()
-global versaoAtual := "1.0.4"
+global versaoAtual := "1.0.5"
 global repositorioGithub := "lucasgonca1997/pka-busca-instancias"
 global pidAtual := DllCall("GetCurrentProcessId", "UInt")
 global scriptAtualizacao := pastaDados "\pka-update.ps1"
@@ -457,6 +458,19 @@ CorDoCabecalho(cor) {
     return r >= 20 && r <= 70 && g >= 90 && g <= 155 && b >= 140 && b <= 210
 }
 
+CorPainelPerto(x, y, botao) {
+    for dx in [-4, 0, 4] {
+        for dy in [-4, 0, 4] {
+            try {
+                cor := PixelGetColorBusca(x + dx, y + dy)
+                if botao ? CorDoBotao(cor) : CorDoCabecalho(cor)
+                    return true
+            }
+        }
+    }
+    return false
+}
+
 ; Duas amostras confirmam o painel em poucos pixels, mesmo apos reiniciar.
 PainelConfere(cx, cy, cw, ch, centroX, centroY, escala) {
     xBotao := Round(centroX + 165 * escala)
@@ -468,8 +482,8 @@ PainelConfere(cx, cy, cw, ch, centroX, centroY, escala) {
         || yCabecalho < cy || yCabecalho >= cy + ch
         return false
     try {
-        if CorDoBotao(PixelGetColorBusca(xBotao, yBotao))
-            && CorDoCabecalho(PixelGetColorBusca(xCabecalho, yCabecalho))
+        if CorPainelPerto(xBotao, yBotao, true)
+            && CorPainelPerto(xCabecalho, yCabecalho, false)
             return true
     } catch {
     }
@@ -486,11 +500,11 @@ PainelAbertoNaPosicao(area) {
     try {
         if hx >= area.cx && hx < area.cx + area.cw
             && hy >= area.cy && hy < area.cy + area.ch
-            && CorDoCabecalho(PixelGetColorBusca(hx, hy))
+            && CorPainelPerto(hx, hy, false)
             return true
         if bx >= area.cx && bx < area.cx + area.cw
             && by >= area.cy && by < area.cy + area.ch
-            && CorDoBotao(PixelGetColorBusca(bx, by))
+            && CorPainelPerto(bx, by, true)
             return true
     } catch {
     }
@@ -1070,7 +1084,7 @@ try {
 AlternarBusca() {
     global buscaAtiva, btnBusca, txtBusca, imagemZero, MinhaGui, inicioBusca
     global ciclosSemVaga, tempoPainelMs, tempoVagaMs, posicaoBusca, subindo
-    global modoFundo
+    global modoFundo, ultimaTentativaPainel
     if buscaAtiva {
         buscaAtiva := false
         SetTimer ProcurarInstancia, 0
@@ -1101,6 +1115,7 @@ AlternarBusca() {
     ciclosSemVaga := 0
     subindo := false
     posicaoBusca := 0
+    ultimaTentativaPainel := 0
     tempoPainelMs := 0
     tempoVagaMs := 0
     buscaAtiva := true
@@ -1113,7 +1128,7 @@ AlternarBusca() {
 ProcurarInstancia() {
     global buscaAtiva, buscaOcupada, subindo, erroImagem, txtBusca, btnBusca, editNome, erroNome
     global ciclosSemVaga, inicioBusca, tempoPainelMs, tempoVagaMs, posicaoBusca
-    global modoFundo
+    global modoFundo, ultimaTentativaPainel
     if !buscaAtiva || buscaOcupada
         return
     buscaOcupada := true
@@ -1140,6 +1155,8 @@ ProcurarInstancia() {
                     SalvarCalibracao(hwnd, nome, px, py, &erroSalvar)
             }
             painelAberto := LocalizarJanelaConhecida(hwnd, &mx, &my, &escalaUI)
+            if !painelAberto && ultimaTentativaPainel
+                painelAberto := LocalizarJanelaInstancia(hwnd, &mx, &my, &escalaUI)
             if !posicaoEncontrada && painelAberto {
                 txtBusca.Text := "Status: nome oculto; tentando novamente"
                 FecharPainelBusca(hwnd)
@@ -1152,25 +1169,30 @@ ProcurarInstancia() {
                     intervaloProximo := 1000
                     return
                 }
-                ClicarBusca(hwnd, px, py, "Right")
-                if !modoFundo
-                    Sleep 60
-                if !buscaAtiva
-                    return
-                if !CapturarBusca(hwnd) {
-                    txtBusca.Text := "Status: aguardando captura do painel"
-                    intervaloProximo := 500
+                if ultimaTentativaPainel
+                    && A_TickCount - ultimaTentativaPainel < 1500 {
+                    txtBusca.Text := "Status: aguardando abertura do painel"
+                    intervaloProximo := 120
                     return
                 }
-                if !LocalizarJanelaInstancia(hwnd, &mx, &my, &escalaUI) {
-                    Sleep 60
-                    CapturarBusca(hwnd)
-                    if !LocalizarJanelaInstancia(hwnd, &mx, &my, &escalaUI) {
-                        txtBusca.Text := "Status: aguardando janela de instâncias"
-                        FecharPainelBusca(hwnd)
-                        intervaloProximo := 300
-                        return
+                ClicarBusca(hwnd, px, py, "Right")
+                ultimaTentativaPainel := A_TickCount
+                Sleep 100
+                if !buscaAtiva
+                    return
+                painelAberto := false
+                Loop 3 {
+                    if CapturarBusca(hwnd)
+                        && LocalizarJanelaInstancia(hwnd, &mx, &my, &escalaUI) {
+                        painelAberto := true
+                        break
                     }
+                    Sleep 100
+                }
+                if !painelAberto {
+                    txtBusca.Text := "Status: aguardando janela de instâncias"
+                    intervaloProximo := 150
+                    return
                 }
             }
             if !ObterAreaCliente(hwnd, &cx, &cy, &cw, &ch) {
@@ -1190,22 +1212,41 @@ ProcurarInstancia() {
                 intervaloProximo := 1000
                 return
             }
-            ClicarBusca(hwnd, posicaoBusca.px, posicaoBusca.py, "Right")
-            if !modoFundo
-                Sleep 60
             if !CapturarBusca(hwnd) {
                 txtBusca.Text := "Status: aguardando captura do PKA"
                 intervaloProximo := 800
                 return
             }
             if !PainelAbertoNaPosicao(posicaoBusca) {
-                Sleep 60
-                CapturarBusca(hwnd)
-                if !PainelAbertoNaPosicao(posicaoBusca) {
-                    txtBusca.Text := "Status: painel não confirmado; tentando novamente"
-                    FecharPainelBusca(hwnd)
+                if ultimaTentativaPainel
+                    && A_TickCount - ultimaTentativaPainel < 1500 {
+                    txtBusca.Text := "Status: aguardando abertura do painel"
                     intervaloProximo := 120
                     return
+                }
+                ClicarBusca(hwnd, posicaoBusca.px, posicaoBusca.py, "Right")
+                ultimaTentativaPainel := A_TickCount
+                Sleep 100
+                Loop 3 {
+                    if CapturarBusca(hwnd) && PainelAbertoNaPosicao(posicaoBusca)
+                        break
+                    Sleep 100
+                }
+                if !PainelAbertoNaPosicao(posicaoBusca) {
+                    if LocalizarJanelaInstancia(hwnd, &novoX, &novoY, &novaEscala)
+                        && ObterAreaCliente(hwnd, &novoCx, &novoCy, &novoCw, &novoCh) {
+                        posicaoBusca.mx := novoX
+                        posicaoBusca.my := novoY
+                        posicaoBusca.escala := novaEscala
+                        posicaoBusca.cx := novoCx
+                        posicaoBusca.cy := novoCy
+                        posicaoBusca.cw := novoCw
+                        posicaoBusca.ch := novoCh
+                    } else {
+                        txtBusca.Text := "Status: painel não confirmado; aguardando"
+                        intervaloProximo := 150
+                        return
+                    }
                 }
             }
             mx := posicaoBusca.mx
@@ -1228,7 +1269,6 @@ ProcurarInstancia() {
         }
         if erroImagem {
             txtBusca.Text := "Status: falha na imagem; tentando novamente"
-            FecharPainelBusca(hwnd)
             intervaloProximo := 1000
             return
         }
@@ -1247,15 +1287,12 @@ ProcurarInstancia() {
             }
             if erroImagem {
                 txtBusca.Text := "Status: falha na imagem; tentando novamente"
-                FecharPainelBusca(hwnd)
                 intervaloProximo := 1000
                 return
             }
         }
         subindo := !subindo
         ciclosSemVaga++
-        FecharPainelBusca(hwnd)
-        Sleep 20
         txtBusca.Text := "Status: sem vaga | ciclo " ciclosSemVaga " em " Round((A_TickCount - inicioImagem) / 1000, 2) "s"
     } catch as erro {
         txtBusca.Text := "Status: falha temporária; tentando novamente (" erro.Message ")"

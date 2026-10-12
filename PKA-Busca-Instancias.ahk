@@ -1,12 +1,26 @@
 #Requires AutoHotkey v2.0
+;@Ahk2Exe-SetVersion 1.0.1
 #SingleInstance Force
 #UseHook
 #Include wincapture.ahk
+
+if !A_IsAdmin {
+    try {
+        if A_IsCompiled
+            Run '*RunAs "' A_ScriptFullPath '"'
+        else
+            Run '*RunAs "' A_AhkPath '" "' A_ScriptFullPath '"'
+    } catch {
+        MsgBox "Este programa precisa de permissao de administrador para controlar o PKA.", "PKA - Busca de instancias"
+    }
+    ExitApp
+}
 
 SetTitleMatchMode 2
 CoordMode "Mouse", "Screen"
 CoordMode "Pixel", "Screen"
 SetMouseDelay -1
+SetControlDelay -1
 SetKeyDelay -1
 SetWinDelay -1
 
@@ -35,7 +49,7 @@ global imagemTela := 0
 global telaCx := 0, telaCy := 0, telaCw := 0, telaCh := 0
 global telaSx := 1, telaSy := 1
 global modelosZero := Map()
-global versaoAtual := "1.0.0"
+global versaoAtual := "1.0.1"
 global repositorioGithub := "lucasgonca1997/pka-busca-instancias"
 global pidAtual := DllCall("GetCurrentProcessId", "UInt")
 global scriptAtualizacao := pastaDados "\pka-update.ps1"
@@ -405,8 +419,25 @@ ClicarBusca(hwnd, x, y, botao := "Left") {
     }
     if !ObterAreaCliente(hwnd, &cx, &cy, &cw, &ch)
         throw Error("Área do jogo indisponível")
-    ControlClick("x" Round(x - cx) " y" Round(y - cy),
-        "ahk_id " hwnd, "", botao, 1, "NA Pos")
+    rx := Round(x - cx)
+    ry := Round(y - cy)
+    ; O PKA pode consultar a posicao real do cursor antes de aceitar
+    ; o clique, mesmo quando recebe ControlClick em segundo plano.
+    MouseGetPos &anteriorX, &anteriorY
+    try {
+        MouseMove x, y, 0
+        try PostMessage 0x0200, 0, (rx & 0xFFFF) | ((ry & 0xFFFF) << 16), , "ahk_id " hwnd
+        if botao = "Right"
+            Sleep 25
+        ControlClick("x" rx " y" ry, "ahk_id " hwnd, "", botao, 1, "NA Pos")
+        if botao = "Right"
+            Sleep 60
+    } finally {
+        ; Se a pessoa moveu o mouse durante o clique, respeita a nova posicao.
+        MouseGetPos &atualX, &atualY
+        if Abs(atualX - x) <= 2 && Abs(atualY - y) <= 2
+            MouseMove anteriorX, anteriorY, 0
+    }
 }
 
 FecharPainelBusca(hwnd) {
@@ -1120,7 +1151,8 @@ ProcurarInstancia() {
                     return
                 }
                 ClicarBusca(hwnd, px, py, "Right")
-                Sleep 60
+                if !modoFundo
+                    Sleep 60
                 if !buscaAtiva
                     return
                 if !CapturarBusca(hwnd) {
@@ -1157,7 +1189,8 @@ ProcurarInstancia() {
                 return
             }
             ClicarBusca(hwnd, posicaoBusca.px, posicaoBusca.py, "Right")
-            Sleep 60
+            if !modoFundo
+                Sleep 60
             if !CapturarBusca(hwnd) {
                 txtBusca.Text := "Status: aguardando captura do PKA"
                 intervaloProximo := 800

@@ -4,16 +4,20 @@ Automação de busca de instâncias para PokeAlliance em AutoHotkey v2 no Window
 
 ## Uso
 
-1. Baixe `PKA-Busca-Instancias.exe` na seção **Releases**.
+1. Baixe `PKA-Busca-Instancias.exe` na seção **Releases**. Ao abrir, autorize a solicitação de administrador do Windows. O programa só funciona com essa permissão, pois o PKA também é executado como administrador.
 2. Abra o PokeAlliance, informe o nome do personagem e, quando o nome estiver visível, clique em **Calibrar**. A posição fica salva no computador.
 3. Pressione **F12** para iniciar ou parar. O programa procura instâncias com `0 jogadores`, tenta entrar e apita três vezes.
 4. A opção de busca com o PKA coberto por outras janelas vem ligada. O jogo pode ficar atrás de outras janelas, mas não minimizado.
+
+Nos cliques em segundo plano, o programa posiciona o cursor brevemente no alvo salvo e o devolve à posição anterior. Isso atende aos clientes que só reconhecem o clique depois de receber o movimento do mouse.
 
 A busca percorre sete passos de rolagem por direção. A interface pode ser minimizada na bandeja.
 
 ## Atualizações
 
 O executável verifica a versão mais recente no GitHub ao abrir. Quando há uma versão nova, pede confirmação, baixa o novo executável, confere o SHA-256 publicado pelo GitHub, substitui o arquivo atual e reinicia. As configurações do personagem e da calibração ficam em `%APPDATA%\PKA-Automacao\config.ini`.
+
+A partir de `v1.0.1`, o executável exige administrador antes de iniciar. Ao atualizar a partir da `v1.0.0`, o Windows solicitará essa permissão na primeira abertura da nova versão.
 
 Versões distribuídas antes de `v1.0.0` não contêm o atualizador e precisam ser substituídas manualmente uma vez. Para que versões futuras sejam encontradas, publique uma **Release** com tag `vX.Y.Z` e o anexo com o nome exato `PKA-Busca-Instancias.exe`.
 
